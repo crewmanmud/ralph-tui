@@ -127,28 +127,32 @@ function normalizeConfigAfterLoad(config: StoredConfig): StoredConfig {
  * @returns Parsed and validated config, or empty object if file doesn't exist
  */
 async function loadConfigFile(configPath: string): Promise<LoadConfigResult> {
+  let content: string;
   try {
     await access(configPath, constants.R_OK);
-    const content = await readFile(configPath, "utf-8");
+    content = await readFile(configPath, "utf-8");
+  } catch {
+    // File doesn't exist or can't be read
+    return { config: {}, exists: false };
+  }
 
-    // Handle empty file
-    if (!content.trim()) {
-      return { config: {}, exists: true };
-    }
+  // File exists — now parse it (errors here should NOT mark file as missing)
+  if (!content.trim()) {
+    return { config: {}, exists: true };
+  }
 
+  try {
     const parsed = parseToml(content);
-
-    // Validate with Zod
     const result: ConfigParseResult = validateStoredConfig(parsed);
     if (!result.success) {
       const errorMsg = formatConfigErrors(result.errors ?? [], configPath);
       return { config: {}, exists: true, errors: errorMsg };
     }
-
     return { config: normalizeConfigAfterLoad(result.data as StoredConfig), exists: true };
-  } catch {
-    // File doesn't exist or can't be read
-    return { config: {}, exists: false };
+  } catch (err) {
+    // TOML syntax error — file exists but is malformed
+    const errorMsg = `Config file has invalid TOML syntax: ${configPath}\n${err instanceof Error ? err.message : String(err)}`;
+    return { config: {}, exists: true, errors: errorMsg };
   }
 }
 
