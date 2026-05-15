@@ -127,8 +127,16 @@ function normalizeConfigAfterLoad(config: StoredConfig): StoredConfig {
  * @returns Parsed and validated config, or empty object if file doesn't exist
  */
 async function loadConfigFile(configPath: string): Promise<LoadConfigResult> {
+  // Check existence and readability separately so parse/validation errors
+  // do not masquerade as "file not found".
   try {
     await access(configPath, constants.R_OK);
+  } catch {
+    // File doesn't exist or can't be read
+    return { config: {}, exists: false };
+  }
+
+  try {
     const content = await readFile(configPath, "utf-8");
 
     // Handle empty file
@@ -146,9 +154,10 @@ async function loadConfigFile(configPath: string): Promise<LoadConfigResult> {
     }
 
     return { config: normalizeConfigAfterLoad(result.data as StoredConfig), exists: true };
-  } catch {
-    // File doesn't exist or can't be read
-    return { config: {}, exists: false };
+  } catch (err) {
+    // File exists but could not be parsed or validated
+    const message = err instanceof Error ? err.message : String(err);
+    return { config: {}, exists: true, errors: `Failed to parse ${configPath}: ${message}` };
   }
 }
 

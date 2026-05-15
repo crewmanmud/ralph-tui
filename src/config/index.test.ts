@@ -113,6 +113,22 @@ describe('loadStoredConfig', () => {
     expect(config).toEqual({});
   });
 
+  test('returns empty config when global config has invalid TOML', async () => {
+    await writeFile(globalConfigPath, 'this is [not valid toml ===', 'utf-8');
+
+    const config = await loadStoredConfig(tempDir, globalConfigPath);
+    expect(config).toEqual({});
+  });
+
+  test('returns empty config when project config has invalid TOML', async () => {
+    const projectConfigDir = join(tempDir, '.ralph-tui');
+    await mkdir(projectConfigDir, { recursive: true });
+    await writeFile(join(projectConfigDir, 'config.toml'), 'this is [not valid toml ===', 'utf-8');
+
+    const config = await loadStoredConfig(tempDir, globalConfigPath);
+    expect(config).toEqual({});
+  });
+
   test('finds project config in parent directories', async () => {
     // Create a project structure with config at project root
     const projectRoot = join(tempDir, 'my-project');
@@ -340,6 +356,33 @@ describe('loadStoredConfigWithSource', () => {
     expect(source.projectLoaded).toBe(true);
     expect(source.globalPath).toBe(globalConfigPath);
     expect(source.projectPath).toBe(projectConfigPath);
+  });
+
+  test('reports global config as found when it has invalid TOML', async () => {
+    await writeFile(globalConfigPath, 'this is [not valid toml ===', 'utf-8');
+
+    const { config, source } = await loadStoredConfigWithSource(tempDir, globalConfigPath);
+    expect(config).toEqual({});
+    // File exists on disk, so exists/path should be populated
+    expect(source.globalLoaded).toBe(true);
+    expect(source.globalPath).toBe(globalConfigPath);
+    expect(source.projectLoaded).toBe(false);
+    expect(source.projectPath).toBeNull();
+  });
+
+  test('reports project config as found when it has invalid TOML', async () => {
+    const projectConfigDir = join(tempDir, '.ralph-tui');
+    await mkdir(projectConfigDir, { recursive: true });
+    const projectConfigPath = join(projectConfigDir, 'config.toml');
+    await writeFile(projectConfigPath, 'this is [not valid toml ===', 'utf-8');
+
+    const { config, source } = await loadStoredConfigWithSource(tempDir, globalConfigPath);
+    expect(config).toEqual({});
+    // File exists on disk, so exists/path should be populated
+    expect(source.projectLoaded).toBe(true);
+    expect(source.projectPath).toBe(projectConfigPath);
+    expect(source.globalLoaded).toBe(false);
+    expect(source.globalPath).toBeNull();
   });
 });
 
